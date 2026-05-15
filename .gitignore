@@ -427,3 +427,24 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Angular / Node.js build and workspace artifacts
+.angular/
+dist/
+coverage/
+out-tsc/
+.tmp/
+tmp/
+temp/
+.cache/
+.eslintcache
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
