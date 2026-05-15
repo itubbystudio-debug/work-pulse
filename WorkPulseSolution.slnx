@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WorkPulse.Api/WorkPulse.Api.csproj" />
+    <Project Path="src/WorkPulse.Application/WorkPulse.Application.csproj" />
+    <Project Path="src/WorkPulse.Domain/WorkPulse.Domain.csproj" />
+    <Project Path="src/WorkPulse.Infrastructure/WorkPulse.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WorkPulse.ArchitectureTests/WorkPulse.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>
