@@ -7,5 +7,11 @@ public interface IApplicationDbContext
 {
     DbSet<Workspace> Workspaces { get; }
 
+    DbSet<Department> Departments { get; }
+
+    DbSet<Position> Positions { get; }
+
+    DbSet<EmployeeGroup> EmployeeGroups { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

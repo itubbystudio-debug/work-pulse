@@ -11,6 +11,12 @@ public sealed class ApplicationDbContext(
 {
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
+    public DbSet<Department> Departments => Set<Department>();
+
+    public DbSet<Position> Positions => Set<Position>();
+
+    public DbSet<EmployeeGroup> EmployeeGroups => Set<EmployeeGroup>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

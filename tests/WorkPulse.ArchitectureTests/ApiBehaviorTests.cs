@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace WorkPulse.ArchitectureTests;
@@ -101,5 +102,87 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         var content = await reportResponse.Content.ReadAsByteArrayAsync();
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
+    }
+
+    [Fact]
+    public async Task MasterData_CreateValidRecords_Should_Persist_Department_Position_And_EmployeeGroup()
+    {
+        using var client = factory.CreateClient();
+
+        var departmentResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/departments",
+            new { name = "Human Resources", description = "People operations", isActive = true });
+
+        departmentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var departmentId = await ReadDataIdAsync(departmentResponse);
+
+        var positionResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/positions",
+            new
+            {
+                departmentId,
+                name = "HR Manager",
+                description = "Department lead",
+                isActive = true,
+            });
+
+        var positionBody = await positionResponse.Content.ReadAsStringAsync();
+        positionResponse.StatusCode.Should().Be(HttpStatusCode.OK, positionBody);
+
+        var employeeGroupResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/employee-groups",
+            new { name = "Full Time", description = "Permanent employees", isActive = true });
+
+        employeeGroupResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var departments = await client.GetStringAsync("/api/v1/adminmasterdata/departments");
+        departments.Should().Contain("Human Resources");
+
+        var positions = await client.GetStringAsync($"/api/v1/adminmasterdata/positions?departmentId={departmentId}");
+        positions.Should().Contain("HR Manager");
+        positions.Should().Contain("Human Resources");
+
+        var employeeGroups = await client.GetStringAsync("/api/v1/adminmasterdata/employee-groups");
+        employeeGroups.Should().Contain("Full Time");
+    }
+
+    [Fact]
+    public async Task MasterData_CreateIncompleteRecords_Should_Return_ValidationProblemDetails()
+    {
+        using var client = factory.CreateClient();
+
+        var departmentResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/departments",
+            new { name = string.Empty, description = "Missing name", isActive = true });
+
+        var positionResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/positions",
+            new { departmentId = Guid.Empty, name = string.Empty, isActive = true });
+
+        var employeeGroupResponse = await client.PostAsJsonAsync(
+            "/api/v1/adminmasterdata/employee-groups",
+            new { name = string.Empty, isActive = true });
+
+        departmentResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        positionResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        employeeGroupResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var departmentBody = await departmentResponse.Content.ReadAsStringAsync();
+        var positionBody = await positionResponse.Content.ReadAsStringAsync();
+        var employeeGroupBody = await employeeGroupResponse.Content.ReadAsStringAsync();
+
+        departmentBody.Should().Contain("Validation failed");
+        departmentBody.Should().Contain("Name");
+        positionBody.Should().Contain("DepartmentId");
+        positionBody.Should().Contain("Name");
+        employeeGroupBody.Should().Contain("Validation failed");
+        employeeGroupBody.Should().Contain("Name");
+    }
+
+    private static async Task<Guid> ReadDataIdAsync(HttpResponseMessage response)
+    {
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(stream);
+        return document.RootElement.GetProperty("data").GetProperty("id").GetGuid();
     }
 }
