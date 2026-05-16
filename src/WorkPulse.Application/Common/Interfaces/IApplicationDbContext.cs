@@ -7,5 +7,7 @@ public interface IApplicationDbContext
 {
     DbSet<Workspace> Workspaces { get; }
 
+    DbSet<NavigationMenu> NavigationMenus { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

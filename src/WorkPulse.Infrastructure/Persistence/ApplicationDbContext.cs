@@ -11,6 +11,8 @@ public sealed class ApplicationDbContext(
 {
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
+    public DbSet<NavigationMenu> NavigationMenus => Set<NavigationMenu>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
