@@ -10,6 +10,8 @@ namespace WorkPulse.ArchitectureTests;
 
 public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly string _databaseName = $"WorkPulseTests-{Guid.NewGuid()}";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -31,14 +33,14 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
+            var efServiceProvider = new ServiceCollection()
+                .AddEntityFrameworkInMemoryDatabase()
+                .BuildServiceProvider();
+
             services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
             {
-                var efServiceProvider = new ServiceCollection()
-                    .AddEntityFrameworkInMemoryDatabase()
-                    .BuildServiceProvider();
-
                 options
-                    .UseInMemoryDatabase($"WorkPulseTests-{Guid.NewGuid()}")
+                    .UseInMemoryDatabase(_databaseName)
                     .UseInternalServiceProvider(efServiceProvider);
             });
 

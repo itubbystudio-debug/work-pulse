@@ -102,4 +102,83 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
     }
+
+    [Fact]
+    public async Task CreateWorkType_With_Valid_Input_Should_Appear_In_List()
+    {
+        using var client = factory.CreateClient();
+        var code = $"office-{Guid.NewGuid():N}";
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/work-types", new
+        {
+            code,
+            name = "Office",
+            description = "Office attendance",
+            isActive = true,
+            policySettingsJson = "{\"requiresLocation\":true}",
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var listResponse = await client.GetAsync("/api/v1/admin/work-types");
+
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await listResponse.Content.ReadAsStringAsync();
+        body.Should().Contain(code.ToUpperInvariant());
+        body.Should().Contain("Office");
+        body.Should().Contain("requiresLocation");
+    }
+
+    [Fact]
+    public async Task UpdateWorkType_With_Valid_Input_Should_Save_Changes()
+    {
+        using var client = factory.CreateClient();
+        var code = $"remote-{Guid.NewGuid():N}";
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/work-types", new
+        {
+            code,
+            name = "Remote",
+            isActive = true,
+        });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        using var document = System.Text.Json.JsonDocument.Parse(createBody);
+        var id = document.RootElement.GetProperty("data").GetProperty("id").GetGuid();
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/admin/work-types/{id}", new
+        {
+            code,
+            name = "Remote Work",
+            description = "Work outside office",
+            isActive = false,
+        });
+
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updateBody = await updateResponse.Content.ReadAsStringAsync();
+        updateBody.Should().Contain("Remote Work");
+        updateBody.Should().Contain("Work outside office");
+        updateBody.Should().Contain("false");
+    }
+
+    [Fact]
+    public async Task CreateWorkType_With_Invalid_Input_Should_Return_Validation_Feedback()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/work-types", new
+        {
+            code = "bad code",
+            name = string.Empty,
+            isActive = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Validation failed");
+        body.Should().Contain("Code");
+        body.Should().Contain("Name");
+    }
 }

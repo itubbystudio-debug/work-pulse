@@ -11,6 +11,8 @@ public sealed class ApplicationDbContext(
 {
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
+    public DbSet<WorkType> WorkTypes => Set<WorkType>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
