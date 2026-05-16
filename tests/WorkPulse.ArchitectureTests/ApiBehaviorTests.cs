@@ -102,4 +102,98 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
     }
+
+    [Fact]
+    public async Task CreateWorkCalendar_With_Valid_Input_Should_Persist()
+    {
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/workcalendars", new
+        {
+            name = "Bangkok Operations 2026",
+            startDate = "2026-01-01",
+            endDate = "2026-12-31",
+            shiftCode = "DAY",
+            workRuleCode = "TH-STANDARD",
+            exceptionDates = new[]
+            {
+                new
+                {
+                    date = "2026-04-13",
+                    isWorkingDay = false,
+                    description = "Songkran holiday",
+                },
+            },
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        createBody.Should().Contain("Bangkok Operations 2026");
+
+        var created = await createResponse.Content.ReadFromJsonAsync<ApiResponse<CreateWorkCalendarApiResponse>>();
+        created?.Data.Should().NotBeNull();
+
+        var getResponse = await client.GetAsync($"/api/v1/workcalendars/{created!.Data!.Id}");
+
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody = await getResponse.Content.ReadAsStringAsync();
+        getBody.Should().Contain("Bangkok Operations 2026");
+        getBody.Should().Contain("2026-04-13");
+        getBody.Should().Contain("TH-STANDARD");
+    }
+
+    [Fact]
+    public async Task CreateWorkCalendar_With_Invalid_Date_Range_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/workcalendars", new
+        {
+            name = "Invalid calendar",
+            startDate = "2026-12-31",
+            endDate = "2026-01-01",
+            shiftCode = "DAY",
+            workRuleCode = "TH-STANDARD",
+            exceptionDates = Array.Empty<object>(),
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Validation failed");
+        body.Should().Contain("EndDate");
+    }
+
+    [Fact]
+    public async Task CreateWorkCalendar_With_Exception_Date_Outside_Range_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/workcalendars", new
+        {
+            name = "Invalid exceptions",
+            startDate = "2026-01-01",
+            endDate = "2026-01-31",
+            shiftCode = "DAY",
+            workRuleCode = "TH-STANDARD",
+            exceptionDates = new[]
+            {
+                new
+                {
+                    date = "2026-02-01",
+                    isWorkingDay = false,
+                    description = "Outside range",
+                },
+            },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("ExceptionDates");
+        body.Should().Contain("inside the calendar date range");
+    }
 }
+
+file sealed record ApiResponse<T>(T? Data);
+
+file sealed record CreateWorkCalendarApiResponse(Guid Id);
