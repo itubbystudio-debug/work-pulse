@@ -6,4 +6,15 @@ public sealed record ArchitectureSummaryDto(
     string Database,
     string PrimaryOrm,
     string RawSql,
-    string ExcelReports);
+    string ExcelReports,
+    FrontendStackPolicyDto Frontend);
+
+public sealed record FrontendStackPolicyDto(
+    string Framework,
+    string UiLibrary,
+    string Template,
+    string Scope,
+    string VersionPolicy,
+    IReadOnlyCollection<string> RequiredComponents,
+    string ExceptionPolicy,
+    string LegacyPolicy);
