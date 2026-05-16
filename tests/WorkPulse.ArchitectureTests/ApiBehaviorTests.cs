@@ -85,6 +85,70 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task UpdateCompanyProfile_With_Valid_Input_Should_Persist_Profile()
+    {
+        using var client = factory.CreateClient();
+
+        var updateResponse = await client.PutAsJsonAsync("/api/v1/companyprofiles", new
+        {
+            companyName = "WorkPulse Co., Ltd.",
+            taxId = "0105566000000",
+            branchName = "Head Office",
+            email = "admin@workpulse.test",
+            phoneNumber = "+66 2 123 4567",
+            address = "1 Sathorn Road, Bangkok",
+            websiteUrl = "https://workpulse.test",
+        });
+
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResponse = await client.GetAsync("/api/v1/companyprofiles");
+
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await getResponse.Content.ReadAsStringAsync();
+        body.Should().Contain("WorkPulse Co., Ltd.");
+        body.Should().Contain("0105566000000");
+        body.Should().Contain("admin@workpulse.test");
+    }
+
+    [Fact]
+    public async Task UpdateCompanyProfile_With_Missing_Required_Fields_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync("/api/v1/companyprofiles", new
+        {
+            companyName = string.Empty,
+            taxId = string.Empty,
+            branchName = "Head Office",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Validation failed");
+        body.Should().Contain("CompanyName");
+        body.Should().Contain("TaxId");
+    }
+
+    [Fact]
+    public async Task UpdateCompanyProfile_With_Invalid_Email_Should_Return_Validation_Feedback()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync("/api/v1/companyprofiles", new
+        {
+            companyName = "WorkPulse Co., Ltd.",
+            taxId = "0105566000000",
+            email = "not-an-email",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Email");
+    }
+
+    [Fact]
     public async Task ExportWorkspacesReport_Should_Return_Excel_File()
     {
         using var client = factory.CreateClient();
