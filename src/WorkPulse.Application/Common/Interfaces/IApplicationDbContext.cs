@@ -7,5 +7,9 @@ public interface IApplicationDbContext
 {
     DbSet<Workspace> Workspaces { get; }
 
+    DbSet<SystemAdministrationRecord> SystemAdministrationRecords { get; }
+
+    DbSet<AccessControlAssignment> AccessControlAssignments { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

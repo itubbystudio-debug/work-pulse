@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WorkPulse.Application.Common.Interfaces;
@@ -13,6 +15,14 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration(configuration =>
+        {
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SystemAdministration:AdminBearerToken"] = "test-admin-token",
+            });
+        });
 
         builder.ConfigureServices(services =>
         {
@@ -31,6 +41,9 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
+            var databaseName = $"WorkPulseTests-{Guid.NewGuid()}";
+            var databaseRoot = new InMemoryDatabaseRoot();
+
             services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
             {
                 var efServiceProvider = new ServiceCollection()
@@ -38,7 +51,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     .BuildServiceProvider();
 
                 options
-                    .UseInMemoryDatabase($"WorkPulseTests-{Guid.NewGuid()}")
+                    .UseInMemoryDatabase(databaseName, databaseRoot)
                     .UseInternalServiceProvider(efServiceProvider);
             });
 

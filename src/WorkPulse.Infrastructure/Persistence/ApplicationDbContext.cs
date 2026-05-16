@@ -11,6 +11,10 @@ public sealed class ApplicationDbContext(
 {
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
+    public DbSet<SystemAdministrationRecord> SystemAdministrationRecords => Set<SystemAdministrationRecord>();
+
+    public DbSet<AccessControlAssignment> AccessControlAssignments => Set<AccessControlAssignment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

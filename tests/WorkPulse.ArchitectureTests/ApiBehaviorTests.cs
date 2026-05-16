@@ -1,11 +1,18 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace WorkPulse.ArchitectureTests;
 
 public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
+    private static void AuthenticateAsAdmin(HttpClient client)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "test-admin-token");
+    }
+
     [Fact]
     public async Task GetArchitectureSummary_Should_Return_Configured_Backend_Stack()
     {
@@ -101,5 +108,129 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         var content = await reportResponse.Content.ReadAsByteArrayAsync();
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
+    }
+
+    [Fact]
+    public async Task SystemAdministration_Without_Admin_Token_Should_Return_Unauthorized()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/systemadministration/records");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task SystemAdministration_Should_Create_And_List_Master_Data_Record()
+    {
+        using var client = factory.CreateClient();
+        AuthenticateAsAdmin(client);
+        var name = $"People Operations {Guid.NewGuid():N}";
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/systemadministration/records", new
+        {
+            type = 9,
+            name,
+            code = $"DEP-{Guid.NewGuid():N}"[..12],
+            description = "Owns workforce administration",
+            parentId = (Guid?)null,
+            isActive = true,
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        createBody.Should().Contain(name);
+
+        var listResponse = await client.GetAsync("/api/v1/systemadministration/records?type=9&isActive=true");
+
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var listBody = await listResponse.Content.ReadAsStringAsync();
+        listBody.Should().Contain(name, $"create response was {createBody}");
+    }
+
+    [Fact]
+    public async Task SystemAdministration_With_Incomplete_Master_Data_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+        AuthenticateAsAdmin(client);
+
+        var response = await client.PostAsJsonAsync("/api/v1/systemadministration/records", new
+        {
+            type = 9,
+            name = string.Empty,
+            isActive = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Name");
+    }
+
+    [Fact]
+    public async Task SystemAdministration_Should_Grant_Action_Permission_For_Role_And_Menu()
+    {
+        using var client = factory.CreateClient();
+        AuthenticateAsAdmin(client);
+
+        var roleId = await CreateSystemAdministrationRecordAsync(client, 2, $"Admin Role {Guid.NewGuid():N}");
+        var menuId = await CreateSystemAdministrationRecordAsync(client, 4, $"Leave Approval {Guid.NewGuid():N}");
+
+        var grantResponse = await client.PostAsJsonAsync("/api/v1/systemadministration/access-control", new
+        {
+            subjectRecordId = roleId,
+            screenRecordId = menuId,
+            action = "Approve",
+            isAllowed = true,
+        });
+
+        var grantBody = await grantResponse.Content.ReadAsStringAsync();
+        grantResponse.StatusCode.Should().Be(HttpStatusCode.OK, grantBody);
+
+        var matrixResponse = await client.GetAsync($"/api/v1/systemadministration/access-control?subjectRecordId={roleId}");
+        matrixResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await matrixResponse.Content.ReadAsStringAsync();
+        body.Should().Contain("Approve");
+        body.Should().Contain("Leave Approval");
+    }
+
+    [Fact]
+    public async Task SystemAdministration_Should_Reject_Permission_For_Invalid_Subject()
+    {
+        using var client = factory.CreateClient();
+        AuthenticateAsAdmin(client);
+
+        var departmentId = await CreateSystemAdministrationRecordAsync(client, 9, $"Department {Guid.NewGuid():N}");
+        var menuId = await CreateSystemAdministrationRecordAsync(client, 4, $"Attendance {Guid.NewGuid():N}");
+
+        var response = await client.PostAsJsonAsync("/api/v1/systemadministration/access-control", new
+        {
+            subjectRecordId = departmentId,
+            screenRecordId = menuId,
+            action = "View",
+            isAllowed = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("InvalidPermissionSubject");
+    }
+
+    private static async Task<Guid> CreateSystemAdministrationRecordAsync(
+        HttpClient client,
+        int type,
+        string name)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/systemadministration/records", new
+        {
+            type,
+            name,
+            code = $"R{Guid.NewGuid():N}"[..12],
+            isActive = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return json.GetProperty("data").GetProperty("id").GetGuid();
     }
 }
