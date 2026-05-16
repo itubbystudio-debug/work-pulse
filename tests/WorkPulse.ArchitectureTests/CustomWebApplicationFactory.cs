@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WorkPulse.Application.Common.Interfaces;
@@ -13,6 +14,8 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        var databaseName = $"WorkPulseTests-{Guid.NewGuid()}";
+        var databaseRoot = new InMemoryDatabaseRoot();
 
         builder.ConfigureServices(services =>
         {
@@ -38,7 +41,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     .BuildServiceProvider();
 
                 options
-                    .UseInMemoryDatabase($"WorkPulseTests-{Guid.NewGuid()}")
+                    .UseInMemoryDatabase(databaseName, databaseRoot)
                     .UseInternalServiceProvider(efServiceProvider);
             });
 

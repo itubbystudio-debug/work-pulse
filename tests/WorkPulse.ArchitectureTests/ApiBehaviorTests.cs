@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace WorkPulse.ArchitectureTests;
@@ -101,5 +102,122 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         var content = await reportResponse.Content.ReadAsByteArrayAsync();
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
+    }
+
+    [Fact]
+    public async Task CreateUser_With_Admin_Should_Save_And_Appear_In_Admin_List()
+    {
+        using var client = factory.CreateClient();
+        AddAdminHeaders(client);
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new
+        {
+            identityUserId = "identity-001",
+            userName = "admin.user",
+            email = "admin.user@example.com",
+            displayName = "Admin User",
+            role = "Admin",
+            isActive = true,
+        });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        createBody.Should().Contain("admin.user@example.com");
+
+        var listResponse = await client.GetAsync("/api/v1/admin/users");
+
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var listBody = await listResponse.Content.ReadAsStringAsync();
+        listBody.Should().Contain("admin.user");
+        listBody.Should().Contain("Admin User");
+    }
+
+    [Fact]
+    public async Task CreateUser_With_Incomplete_Required_Data_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+        AddAdminHeaders(client);
+
+        var response = await client.PostAsJsonAsync("/api/v1/admin/users", new
+        {
+            identityUserId = string.Empty,
+            userName = string.Empty,
+            email = string.Empty,
+            displayName = string.Empty,
+            role = string.Empty,
+            isActive = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Validation failed");
+        body.Should().Contain("IdentityUserId");
+        body.Should().Contain("UserName");
+        body.Should().Contain("Email");
+        body.Should().Contain("DisplayName");
+        body.Should().Contain("Role");
+    }
+
+    [Fact]
+    public async Task AdminUsers_Without_Admin_Role_Should_Be_Denied()
+    {
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-User-Id", "user-001");
+        client.DefaultRequestHeaders.Add("X-User-Name", "standard.user");
+        client.DefaultRequestHeaders.Add("X-User-Roles", "User");
+
+        var response = await client.GetAsync("/api/v1/admin/users");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task UpdateUser_With_Admin_Should_Save_Changes_And_Activation()
+    {
+        using var client = factory.CreateClient();
+        AddAdminHeaders(client);
+
+        var createResponse = await client.PostAsJsonAsync("/api/v1/admin/users", new
+        {
+            identityUserId = "identity-002",
+            userName = "ops.user",
+            email = "ops.user@example.com",
+            displayName = "Ops User",
+            role = "Operator",
+            isActive = true,
+        });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        using var json = JsonDocument.Parse(createBody);
+        var id = json.RootElement.GetProperty("data").GetProperty("id").GetGuid();
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/admin/users/{id}", new
+        {
+            userName = "ops.user.updated",
+            email = "ops.user.updated@example.com",
+            displayName = "Ops User Updated",
+            role = "Supervisor",
+        });
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var activationResponse = await client.PatchAsJsonAsync($"/api/v1/admin/users/{id}/activation", new
+        {
+            isActive = false,
+        });
+        activationResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var listResponse = await client.GetAsync("/api/v1/admin/users?isActive=false");
+        var listBody = await listResponse.Content.ReadAsStringAsync();
+        listBody.Should().Contain("ops.user.updated@example.com");
+        listBody.Should().Contain("Supervisor");
+    }
+
+    private static void AddAdminHeaders(HttpClient client)
+    {
+        client.DefaultRequestHeaders.Add("X-User-Id", "admin-001");
+        client.DefaultRequestHeaders.Add("X-User-Name", "admin");
+        client.DefaultRequestHeaders.Add("X-User-Roles", "Admin");
     }
 }
