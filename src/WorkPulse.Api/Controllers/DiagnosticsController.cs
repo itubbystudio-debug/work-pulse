@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using WorkPulse.Api.Authorization;
 using WorkPulse.Application.Features.Diagnostics.Commands.CreateWorkspace;
 using WorkPulse.Application.Features.Diagnostics.Queries.GetArchitectureSummary;
 using WorkPulse.Application.Features.Diagnostics.Reports.ExportWorkspaces;
@@ -9,6 +10,7 @@ namespace WorkPulse.Api.Controllers;
 public sealed class DiagnosticsController(IMediator mediator) : BaseApiController(mediator)
 {
     [HttpGet("architecture")]
+    [RequirePermission(PermissionKeys.Diagnostics.View)]
     public async Task<IActionResult> GetArchitectureSummary(CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new GetArchitectureSummaryQuery(), cancellationToken);
@@ -16,6 +18,7 @@ public sealed class DiagnosticsController(IMediator mediator) : BaseApiControlle
     }
 
     [HttpPost("workspaces")]
+    [RequirePermission(PermissionKeys.Diagnostics.Add)]
     public async Task<IActionResult> CreateWorkspace(
         CreateWorkspaceRequest request,
         CancellationToken cancellationToken)
@@ -25,6 +28,7 @@ public sealed class DiagnosticsController(IMediator mediator) : BaseApiControlle
     }
 
     [HttpGet("workspaces/report")]
+    [RequirePermission(PermissionKeys.Diagnostics.Export)]
     public async Task<IActionResult> ExportWorkspaces(CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new ExportWorkspacesReportQuery(), cancellationToken);

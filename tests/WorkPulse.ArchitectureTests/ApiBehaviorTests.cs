@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using WorkPulse.Api.Authorization;
 
 namespace WorkPulse.ArchitectureTests;
 
@@ -9,7 +10,7 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task GetArchitectureSummary_Should_Return_Configured_Backend_Stack()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.View);
 
         var response = await client.GetAsync("/api/v1/diagnostics/architecture");
 
@@ -26,7 +27,7 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task GetArchitectureSummary_Should_Return_Configured_Frontend_Stack()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.View);
 
         var response = await client.GetAsync("/api/v1/diagnostics/architecture");
 
@@ -45,7 +46,7 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task GetArchitectureSummary_Should_Flag_Non_Approved_Ui_Libraries_For_Review()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.View);
 
         var response = await client.GetAsync("/api/v1/diagnostics/architecture");
 
@@ -59,7 +60,7 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task GetArchitectureSummary_Should_Define_Legacy_Migration_Or_Exception_Policy()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.View);
 
         var response = await client.GetAsync("/api/v1/diagnostics/architecture");
 
@@ -73,7 +74,7 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task CreateWorkspace_With_Invalid_Input_Should_Return_ProblemDetails()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.Add);
 
         var response = await client.PostAsJsonAsync("/api/v1/diagnostics/workspaces", new { name = string.Empty });
 
@@ -87,7 +88,9 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     [Fact]
     public async Task ExportWorkspacesReport_Should_Return_Excel_File()
     {
-        using var client = factory.CreateClient();
+        using var client = CreateClientWithPermissions(
+            PermissionKeys.Diagnostics.Add,
+            PermissionKeys.Diagnostics.Export);
 
         var createResponse = await client.PostAsJsonAsync("/api/v1/diagnostics/workspaces", new { name = "Architecture" });
         createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -101,5 +104,60 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         var content = await reportResponse.Content.ReadAsByteArrayAsync();
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
+    }
+
+    [Fact]
+    public async Task ProtectedScreen_Without_ViewPermission_Should_Return_Forbidden()
+    {
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.Add);
+
+        var response = await client.GetAsync("/api/v1/diagnostics/architecture");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ProtectedScreen_Without_AuthenticatedUser_Should_Return_Unauthorized()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/diagnostics/architecture");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ProtectedAction_Without_AddPermission_Should_Return_Forbidden()
+    {
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.View);
+
+        var response = await client.PostAsJsonAsync("/api/v1/diagnostics/workspaces", new { name = "Restricted" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ProtectedAction_With_AddPermission_Should_Succeed()
+    {
+        using var client = CreateClientWithPermissions(PermissionKeys.Diagnostics.Add);
+
+        var response = await client.PostAsJsonAsync("/api/v1/diagnostics/workspaces", new { name = "Allowed" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private HttpClient CreateClientWithPermissions(params string[] permissions)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(PermissionHeaderAuthenticationDefaults.UserIdHeaderName, "test-user");
+
+        if (permissions.Length > 0)
+        {
+            client.DefaultRequestHeaders.Add(
+                PermissionHeaderAuthenticationDefaults.PermissionsHeaderName,
+                string.Join(",", permissions));
+        }
+
+        return client;
     }
 }
