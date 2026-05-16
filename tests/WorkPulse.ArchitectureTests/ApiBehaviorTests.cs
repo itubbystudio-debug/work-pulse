@@ -31,15 +31,16 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         var response = await client.GetAsync("/api/v1/diagnostics/architecture");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Angular");
-        body.Should().Contain("PrimeNG");
-        body.Should().Contain("Sakai Template");
-        body.Should().Contain("Form");
-        body.Should().Contain("Table");
-        body.Should().Contain("Button");
-        body.Should().Contain("Card");
-        body.Should().Contain("Modal");
+        var payload = await response.Content.ReadFromJsonAsync<ArchitectureSummaryResponse>();
+        payload.Should().NotBeNull();
+        payload!.Success.Should().BeTrue();
+        payload.Data.Frontend.Framework.Should().Be("Angular");
+        payload.Data.Frontend.UiLibrary.Should().Be("PrimeNG");
+        payload.Data.Frontend.Template.Should().Be("Sakai Template");
+        payload.Data.Frontend.RequiredComponents.Should().BeEquivalentTo(
+            ["Form", "Table", "Button", "Card", "Modal"]);
+        payload.Data.Frontend.Scope.Should().Contain("All new frontend work in scope");
+        payload.Data.Frontend.VersionPolicy.Should().Contain("versions are TBD");
     }
 
     [Fact]
@@ -102,4 +103,25 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
     }
+
+    private sealed record ArchitectureSummaryResponse(bool Success, ArchitectureSummaryData Data);
+
+    private sealed record ArchitectureSummaryData(
+        string Platform,
+        string Pattern,
+        string Database,
+        string PrimaryOrm,
+        string RawSql,
+        string ExcelReports,
+        FrontendStackPolicy Frontend);
+
+    private sealed record FrontendStackPolicy(
+        string Framework,
+        string UiLibrary,
+        string Template,
+        string Scope,
+        string VersionPolicy,
+        IReadOnlyCollection<string> RequiredComponents,
+        string ExceptionPolicy,
+        string LegacyPolicy);
 }

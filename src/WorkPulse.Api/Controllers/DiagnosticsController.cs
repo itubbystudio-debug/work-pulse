@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WorkPulse.Application.Features.Diagnostics.Commands.CreateWorkspace;
 using WorkPulse.Application.Features.Diagnostics.Queries.GetArchitectureSummary;
@@ -8,6 +9,7 @@ namespace WorkPulse.Api.Controllers;
 
 public sealed class DiagnosticsController(IMediator mediator) : BaseApiController(mediator)
 {
+    [AllowAnonymous]
     [HttpGet("architecture")]
     public async Task<IActionResult> GetArchitectureSummary(CancellationToken cancellationToken)
     {
