@@ -102,4 +102,95 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
         content.Should().NotBeEmpty();
         content.Take(2).Should().Equal(0x50, 0x4B);
     }
+
+    [Fact]
+    public async Task CreateCompanyHoliday_With_Valid_Input_Should_Persist()
+    {
+        using var client = factory.CreateClient();
+        var holidayDate = new DateOnly(2026, 4, 13);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/companyholidays",
+            new { date = holidayDate, name = "Songkran Festival" });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        createBody.Should().Contain("Songkran Festival");
+        createBody.Should().Contain("2026-04-13");
+
+        var listResponse = await client.GetAsync("/api/v1/companyholidays?from=2026-04-01&to=2026-04-30");
+
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var listBody = await listResponse.Content.ReadAsStringAsync();
+        listBody.Should().Contain("Songkran Festival");
+        listBody.Should().Contain("2026-04-13");
+    }
+
+    [Fact]
+    public async Task UpdateCompanyHoliday_With_Valid_Input_Should_Save_Changes()
+    {
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/companyholidays",
+            new { date = new DateOnly(2026, 5, 1), name = "Labor Day" });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<ApiEnvelope<CompanyHolidayResponse>>();
+        created?.Data.Should().NotBeNull();
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/v1/companyholidays/{created!.Data!.Id}",
+            new { date = new DateOnly(2026, 5, 4), name = "Substitution Holiday" });
+
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getResponse = await client.GetAsync($"/api/v1/companyholidays/{created.Data.Id}");
+
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await getResponse.Content.ReadAsStringAsync();
+        body.Should().Contain("Substitution Holiday");
+        body.Should().Contain("2026-05-04");
+    }
+
+    [Fact]
+    public async Task CreateCompanyHoliday_With_Invalid_Date_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/companyholidays",
+            new { date = default(DateOnly), name = "Invalid Holiday" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Validation failed");
+        body.Should().Contain("Date");
+    }
+
+    [Fact]
+    public async Task CreateCompanyHoliday_With_Duplicate_Date_Should_Return_ProblemDetails()
+    {
+        using var client = factory.CreateClient();
+        var holidayDate = new DateOnly(2026, 12, 5);
+
+        var firstResponse = await client.PostAsJsonAsync(
+            "/api/v1/companyholidays",
+            new { date = holidayDate, name = "Father's Day" });
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var duplicateResponse = await client.PostAsJsonAsync(
+            "/api/v1/companyholidays",
+            new { date = holidayDate, name = "Duplicate Holiday" });
+
+        duplicateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        duplicateResponse.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        var body = await duplicateResponse.Content.ReadAsStringAsync();
+        body.Should().Contain("A company holiday already exists for this date.");
+    }
 }
+
+file sealed record ApiEnvelope<T>(bool Success, T? Data);
+
+file sealed record CompanyHolidayResponse(Guid Id, DateOnly Date, string Name);
