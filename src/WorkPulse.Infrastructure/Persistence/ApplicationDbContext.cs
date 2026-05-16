@@ -9,6 +9,8 @@ public sealed class ApplicationDbContext(
     DbContextOptions<ApplicationDbContext> options)
     : DbContext(options), IApplicationDbContext
 {
+    public DbSet<Shift> Shifts => Set<Shift>();
+
     public DbSet<Workspace> Workspaces => Set<Workspace>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
