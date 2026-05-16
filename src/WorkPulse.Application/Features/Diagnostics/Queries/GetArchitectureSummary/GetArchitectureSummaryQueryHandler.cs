@@ -16,7 +16,16 @@ public sealed class GetArchitectureSummaryQueryHandler
             "SQL Server",
             "EF Core",
             "Dapper",
-            "ClosedXML");
+            "ClosedXML",
+            new FrontendStackPolicyDto(
+                "Angular",
+                "PrimeNG",
+                "Sakai Template",
+                "All new frontend work in scope must use Angular as the primary frontend framework.",
+                "Angular, PrimeNG, and Sakai Template versions are TBD until the project version policy is approved.",
+                ["Form", "Table", "Button", "Card", "Modal"],
+                "Non-approved UI libraries must be flagged for review and require explicit approval before use.",
+                "Mixed legacy frontend modules require a confirmed migration or exception approach before implementation."));
 
         return Task.FromResult(Result<ArchitectureSummaryDto>.Success(summary));
     }

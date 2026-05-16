@@ -24,6 +24,53 @@ public sealed class ApiBehaviorTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task GetArchitectureSummary_Should_Return_Configured_Frontend_Stack()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/diagnostics/architecture");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Angular");
+        body.Should().Contain("PrimeNG");
+        body.Should().Contain("Sakai Template");
+        body.Should().Contain("Form");
+        body.Should().Contain("Table");
+        body.Should().Contain("Button");
+        body.Should().Contain("Card");
+        body.Should().Contain("Modal");
+    }
+
+    [Fact]
+    public async Task GetArchitectureSummary_Should_Flag_Non_Approved_Ui_Libraries_For_Review()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/diagnostics/architecture");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Non-approved UI libraries");
+        body.Should().Contain("flagged for review");
+        body.Should().Contain("explicit approval");
+    }
+
+    [Fact]
+    public async Task GetArchitectureSummary_Should_Define_Legacy_Migration_Or_Exception_Policy()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/diagnostics/architecture");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Mixed legacy frontend modules");
+        body.Should().Contain("migration");
+        body.Should().Contain("exception");
+    }
+
+    [Fact]
     public async Task CreateWorkspace_With_Invalid_Input_Should_Return_ProblemDetails()
     {
         using var client = factory.CreateClient();
